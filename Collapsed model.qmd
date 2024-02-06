@@ -1,0 +1,114 @@
+---
+title: "Collapsed model"
+format: docx
+editor: visual
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r include=FALSE}
+library(tidyverse)
+library(writexl)
+library(survival)
+library(mlogit)
+library(coefplot)
+library(margins)
+library(ggplot2)
+library(readxl)
+library(kableExtra)
+```
+
+You can add options to executable code like this
+
+```{r}
+long_data_Final_full <- read_excel("~/Current projects/PhD/Surgical prioritisation/Survey/DCE/Final/FINAL_data_Full.xlsx")
+View(long_data_Final_full)
+
+long_data_Final_full$Choice_task <- as.numeric(long_data_Final_full$Choice_task)
+long_data_Final_full$Choice <- as.logical(long_data_Final_full$Choice)
+```
+
+
+```{r}
+#collapse pain
+long_data_Final_full <- long_data_Final_full %>% mutate(pain_sev_ext = as.integer(pain_sev == 1 | pain_ext == 1))
+```
+
+```{r}
+# collapse mob
+long_data_Final_full <- long_data_Final_full %>% mutate(mob_sev_ext = as.integer(mob_sev == 1 | mob_ext == 1))
+```
+
+```{r}
+# collapse adl
+long_data_Final_full <- long_data_Final_full %>% mutate(adl_sev_ext = as.integer(adl_sev == 1 | adl_ext == 1))
+```
+
+```{r}
+# collapse mental
+long_data_Final_full <- long_data_Final_full %>% mutate(mental_sev_ext = as.integer(mental_sev == 1 | mental_ext == 1))
+```
+
+```{r}
+# collapse work
+long_data_Final_full <- long_data_Final_full %>% mutate(work_all = as.integer(work_part == 1 | work_full == 1))
+```
+
+```{r}
+# collapse xray
+long_data_Final_full <- long_data_Final_full %>% mutate(xray_all = as.integer(xray_mod == 1 | xray_sev == 1))
+```
+
+
+```{r}
+DCE_data_collapsed <- mlogit.data(data=long_data_Final_full, choice = "Choice", shape = "long", alt.var = "Alternatives", id.var = "ID")
+
+logitModel_collapsed <- mlogit(formula = Choice ~ pain_mod + pain_sev_ext + mob_mod + mob_sev_ext + adl_mod + adl_sev_ext + mental_mod + mental_sev_ext + work_all + xray_mod + xray_sev + time_waited + ascb | 0, data = DCE_data_collapsed)
+summary(logitModel_collapsed)
+```
+```{r}
+coefs5 <- as.data.frame(coef(summary(logitModel_collapsed)))
+coefs5$Variable <- rownames(coefs5)
+rownames(coefs5) <- NULL
+coefs5 <- coefs5 %>%
+  mutate(Variable = case_when(
+    Variable == "pain_mod" ~ "Moderate pain",
+    Variable == "pain_sev_ext" ~ "Severe/Extreme pain",
+    Variable == "mob_mod" ~ "Moderate mobility impairment",
+    Variable == "mob_sev_ext" ~ "Severe/Extreme mobility impairment",
+    Variable == "adl_mod" ~ "Moderate impairment in Activities of Daily Living (ADLs)",
+    Variable == "adl_sev_ext" ~ "Severe/Extreme impairment in Activities of Daily Living",
+    Variable == "mental_mod" ~ "Moderate impact on mental wellbeing",
+    Variable == "mental_sev_ext" ~ "Severe/Extreme impact on mental wellbeing",
+    Variable == "work_all" ~ "Work/carer status impairment",
+    Variable == "xray_mod" ~ "Potential risk of harm with operative delay based on radiological severity",
+    Variable == "xray_sev" ~ "Likelihood of harm with operative delay based on radiology severity",
+    Variable == "time_waited" ~ "Length of time waited",
+    TRUE ~ Variable                   # Otherwise, keep the original word
+  ))
+
+coefs5
+
+kable_output2 <- kable(coefs5, format = "html")
+kable_output2
+
+# significant coefficients only
+sig_coefs <- coefs5[coefs5$`Pr(>|z|)` <= 0.05, ]
+
+# Create plot
+plot5 <- ggplot(sig_coefs, aes(x = Estimate, y = Variable)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_point() +
+  theme_minimal() +
+  xlab("Coefficient") +
+  ylab("") +
+  ggtitle("Figure 2 - Coefficient Plot")
+plot5
+```
+
